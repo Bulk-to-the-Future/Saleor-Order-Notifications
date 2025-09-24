@@ -1,0 +1,49 @@
+subscription OrderCreatedNotification {
+  event {
+    ... on OrderCreated {
+      order {
+        id
+        number
+        channel {
+          id
+        }
+        billingAddress {
+          firstName
+        }
+        total {
+          gross {
+            amount
+            currency
+          }
+        }
+        privateMetadata {
+          key
+          value
+        }
+      }
+    }
+  }
+}
+
+fragment OrderCreatedWebhookPayloadSubscription on OrderCreated {
+  order {
+    id
+    number
+    channel {
+      id
+    }
+    billingAddress {
+      firstName
+    }
+    total {
+      gross {
+        amount
+        currency
+      }
+    }
+    privateMetadata {
+      key
+      value
+    }
+  }
+}
