@@ -1,48 +1,68 @@
+"use client";
+
 import { useEffect } from "react";
-import io from "socket.io-client";
 import { AppBridge, AppBridgeProvider } from "@saleor/app-sdk/app-bridge";
 import { useDashboardToken } from "@saleor/app-sdk/app-bridge";
-import { ToastContainer, toast } from "react-toastify";
-import "react-toastify/dist/ReactToastify.css";
+import dynamic from "next/dynamic";
 
-const appBridge = new AppBridge();
+// Dynamically import ToastContainer
+const ToastContainer = dynamic(() => import("react-toastify").then((mod) => mod.ToastContainer), {
+  ssr: false,
+});
 
 export default function NotificationsPage() {
   const { tokenClaims, hasAppToken } = useDashboardToken();
 
   useEffect(() => {
-    if (!hasAppToken || !tokenClaims) return; // Ensure token is available
+    if (!hasAppToken || !tokenClaims) return;
 
-    const token = appBridge.getState().token; // Fetch token from appBridge state
+    const appBridge = typeof window !== "undefined" ? new AppBridge() : undefined;
+    if (!appBridge) return;
+
+    const token = appBridge.getState().token;
     if (!token) return;
 
-    const socket = io(process.env.APP_IFRAME_BASE_URL || "http://localhost:3000", { auth: { token } });
+    import("socket.io-client").then(({ io }) => {
+      const socket = io(process.env.APP_IFRAME_BASE_URL, {
+        auth: { token },
+      });
 
-    socket.on("new-order", (data) => {
-      toast(
-        <div>
-          <h4>{data.title}</h4>
-          <p>{data.body}</p>
-          <button
-            onClick={() =>
-              appBridge.dispatch({
-                type: "redirect",
-                payload: { to: `/orders/${data.orderId}`, actionId: "view-order-notification" },
-              })
-            }
-          >
-            View Order
-          </button>
-        </div>,
-        { autoClose: 7000, closeOnClick: false }
-      );
+      socket.on("new-order", (data) => {
+        import("react-toastify").then(({ toast }) => {
+          toast(
+            <div>
+              <h4>{data.title}</h4>
+              <p>{data.body}</p>
+              <button
+                onClick={() => {
+                  if (appBridge) {
+                    appBridge.dispatch({
+                      type: "redirect",
+                      payload: { to: `/orders/${data.orderId}`, actionId: "view-order-notification" },
+                    });
+                  }
+                }}
+              >
+                View Order
+              </button>
+            </div>,
+            { autoClose: 7000, closeOnClick: false }
+          );
+        });
+      });
+
+      return () => {
+        socket.disconnect();
+      };
     });
 
-    // Cleanup function that returns void
-    return () => {
-      socket.disconnect();
-    };
-  }, [hasAppToken, tokenClaims]); // Dependency on token availability
+    // Load CSS client-side
+    if (typeof window !== "undefined") {
+      import("react-toastify/dist/ReactToastify.css");
+    }
+  }, [hasAppToken, tokenClaims]);
+
+  const appBridge = typeof window !== "undefined" ? new AppBridge() : undefined;
 
   return (
     <AppBridgeProvider appBridgeInstance={appBridge}>
